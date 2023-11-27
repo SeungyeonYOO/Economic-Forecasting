@@ -1,0 +1,313 @@
+---
+title: "Econ 144 HW 3"
+author: "Seungyeon Yoo"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      out.width = "75%", fig.align = "center")
+```
+
+\pagebreak
+
+```{r}
+library(fpp3)
+# Loading datasets
+k_export <- read.csv("Korea_export.csv")
+i_export <- read.csv("Indonesia_export.csv")
+
+names(k_export) <- c("Date", "Monthly")
+names(i_export) <- c("Date", "Monthly")
+
+# Creating a tsibble object
+# Loggin the data to stabilize the variances
+k_export <- k_export %>%
+  mutate(Date = yearmonth(Date)) %>%
+  mutate(Monthly = log(Monthly)) %>% #
+  tsibble()
+
+# Creating a tsibble object
+# Loggin the data to stabilize the variances
+i_export <- i_export %>%
+  mutate(Date = yearmonth(Date)) %>%
+  mutate(Monthly = log(Monthly)) %>%
+  tsibble()
+```
+
+
+
+
+# I. Introduction (describe the data, provide some background on the topic, etc.).
+# II. (80%) Results (answers and plots).
+
+### (a) Produce a time-series plot of your data including the respective ACF and PACF plots.
+### (a) Time Series Plots
+International Trade: Exports: Value (Goods): Total for Korea
+```{r}
+autoplot(k_export, col = "skyblue3")
+```
+
+```{r}
+# ACF and PACF for usd_krw
+library(forecast)
+tsdisplay(k_export[,2])
+```
+
+
+
+
+```{r}
+autoplot(i_export, col = "red3")
+```
+
+```{r}
+# ACF and PACF for usd_jpy
+tsdisplay(i_export[,2])
+```
+
+
+```{r}
+# Plotting the two time series together
+ts_k_export <- ts(k_export$Monthly, start = 1990, freq = 12)
+ts_i_export <- ts(i_export$Monthly, start = 1990, freq = 12)
+
+autoplot(ts_k_export, series = "Monthly Export (Korea)") + 
+  autolayer(ts_i_export, series = "Monthly Export (Indonesia)") +
+  labs(y = "US Dollar (Monthly Level)", title = "Monthly Total Exports for Korea and Indonesia")+
+  scale_color_manual(values = c("skyblue3", "red3"),
+                     breaks = c("Monthly Export (Korea)", "Monthly Export (Indonesia)"))
+```
+
+
+### (b) Plot the stl decomposition plot of your data, and discuss the results.
+
+```{r}
+stl_kexport <- stl(ts_k_export, s.window = "periodic", robust = TRUE)
+stl_iexport <- stl(ts_i_export, s.window = "periodic", robust = TRUE)
+
+
+autoplot(stl_kexport) # STL decomposition for Korea
+autoplot(stl_iexport) # STL decomposition for Indonesia
+```
+
+
+
+
+
+
+### (c) Fit a model that includes, trend, seasonality and cyclical components. Make sure to discuss your model in detail.
+```{r}
+k_Trend<- stl_kexport$time.series[,2] # Trend
+k_Seasonal <- stl_kexport$time.series[,1] # Seasonal
+k_Cycle <- auto.arima(remainder(stl_kexport))$fitted # Cycle
+
+######Testing#####
+autoplot(remainder(stl_kexport)) +
+  autolayer(k_Cycle)
+autoplot(ts_k_export - k_Trend - k_Seasonal) +
+  autolayer(k_Cycle)
+
+k_full_model <- k_Trend + k_Seasonal + k_Cycle
+
+# Trend + Seasonal Model
+autoplot(ts_k_export, series = "Monthly Export (Korea)") +
+  autolayer(k_Trend + k_Seasonal)
+# Trend + Seaonsal Model residual plots
+tsdisplay(ts_k_export - (k_Trend + k_Seasonal))
+
+# Trend + Seasonal + Cycle Model
+autoplot(ts_k_export, series = "Monthly Export (Korea)") +
+  autolayer(k_full_model)
+# Trend + Seasonal + Cycle Model residual plots
+tsdisplay(ts_k_export - k_full_model)
+
+
+# auto.arima fitted model
+autoplot(ts_k_export, series = "Monthly Export (Korea)") + 
+  autolayer(auto.arima(ts_k_export)$fitted)
+# auto.arima fitted model residual plots
+tsdisplay(ts_k_export - auto.arima(ts_k_export)$fitted)
+
+
+```
+
+
+```{r}
+i_Trend<- stl_iexport$time.series[,2] # Trend
+i_Seasonal <- stl_iexport$time.series[,1] # Seasonal
+i_Cycle <- auto.arima(remainder(stl_iexport))$fitted# Cycle
+
+i_full_model <- i_Trend + i_Seasonal + i_Cycle
+
+# Trend + Seasonal Model
+autoplot(ts_i_export, series = "Monthly Export (Indonesia)") +
+  autolayer(i_Trend + i_Seasonal)
+# Trend + Seaonsal Model residual plots
+tsdisplay(ts_i_export - (i_Trend + i_Seasonal))
+
+# Trend + Seasonal + Cycle Model
+autoplot(ts_i_export, series = "Monthly Export (Indonesia)") +
+  autolayer(i_full_model)
+# Trend + Seasonal + Cycle Model residual plots
+tsdisplay(ts_i_export - i_full_model)
+
+
+# auto.arima fitted model
+autoplot(ts_i_export, series = "Monthly Export (Indonesia)") + 
+  autolayer(auto.arima(ts_i_export)$fitted)
+# auto.arima fitted model residual plots
+tsdisplay(ts_i_export - auto.arima(ts_i_export)$fitted)
+
+
+```
+
+
+### (e) Plot the respective residuals vs. fitted values and discuss your observations.
+### (f) Plot the ACF and PACF of the respective residuals and interpret the plots.
+
+
+
+### (g) Plot the respective CUSUM and interpret the plot.
+```{r}
+library(strucchange)
+k_resid <- ts_k_export - k_full_model
+i_resid <- ts_i_export - i_full_model
+
+
+# Plotting recursive CUSUM Test for residuals of each country
+plot(efp(k_resid ~ 1, type = "Rec-CUSUM"))
+plot(efp(i_resid ~ 1, type = "Rec-CUSUM"))
+
+
+
+
+
+
+
+
+```
+
+### (h) For your model, discuss the associated diagnostic statistics.
+```{r}
+library(fabletools)
+
+# Diagnostic statistics for Korea
+MAPE(.resid = k_resid, .actual = ts_k_export)
+RMSE(.resid = k_resid, .actual = ts_k_export)
+
+# Diagnostic statstics for Indonesia
+MAPE(.resid = i_resid, .actual = ts_i_export)
+RMSE(.resid = i_resid, .actual = ts_i_export)
+
+
+
+```
+
+
+
+### (i) Use your model to forecast 12-steps ahead. Your forecast should include the respective error bands.
+
+```{r}
+autoplot(ts_k_export) +
+  autolayer(forecast(k_full_model))
+```
+
+
+### (j) Compare your forecast from (i) to the 12-steps ahead forecasts from auto.arima model. Which model performs best in terms of MAPE?
+
+```{r}
+
+```
+
+
+### (k) Combine the four forecasts and comment on the MAPE from this forecasts vs., the individual ones.
+```{r}
+
+```
+
+
+### (l) Fit an appropriate VAR model using your two variables. Make sure to show the relevant plots and discuss your results from the fit. 
+```{r}
+library(vars)
+# Taking first order difference to make it stationary
+diff_k_export <- diff(ts_k_export)
+diff_i_export <- diff(ts_i_export)
+
+var_model1 <- cbind(diff_k_export, diff_i_export)
+VARselect(var_model1, lag.max = 10)
+
+var_model <- cbind(ts_k_export, ts_i_export)
+VARselect(var_model, lag.max = 10)
+```
+
+```{r}
+
+var_model <- VAR(var_model, p = 5)
+var_model1 <- VAR(var_model1, p = 4)
+
+summary(var_model)
+summary(var_model1)
+# Taking first order difference to make it stationary
+ccf(diff(ts_k_export), diff(ts_i_export))
+# According the ccf, it seems like Indonesia export is maximally correlated lag 1 values of Korea export
+
+```
+
+```{r, fig.height = 10}
+# Plotting VAR model
+plot(var_model)
+plot(var_model1)
+```
+
+
+
+### (m) Compute, plot, and interpret the respective impulse response functions.
+```{r, fig.height = 5.5}
+# Impulse response functions
+plot(irf(var_model1, n.ahead = 12))
+```
+
+
+
+### (n) Perform a Granger-Causality test on your variables and discuss your results from the test.
+```{r}
+grangertest(ts_k_export ~ ts_i_export, order = 4)
+grangertest(ts_i_export ~ ts_k_export, order = 4)
+```
+
+
+### (o) Use your VAR model to forecast 12-steps ahead. Your forecast should include the respective error bands. Comment on the differences between the VAR forecast and the other ones obtained using the different methods.
+
+```{r, fig.height=8}
+plot(forecast(var_model1, h = 36), xlim = c(2020, 2027))
+```
+
+
+III. (5%) Conclusions and Future Work.
+IV. (5%) References (include the source of your data and any other resources).
+
+
+
+```{r}
+# Normalizing the dataset
+plot((ts_k_export - mean(ts_k_export)) / sd(ts_k_export), type = "l")
+
+lines((ts_i_export - mean(ts_i_export)) / sd(ts_i_export), type = "l", col = "red")
+
+
+k_norm <- (ts_k_export - mean(ts_k_export)) / sd(ts_k_export)
+i_norm <- (ts_i_export - mean(ts_i_export)) / sd(ts_i_export)
+
+
+grangertest(ts_k_export ~ ts_i_export)
+grangertest(ts_i_export ~ ts_k_export)
+
+```
+
